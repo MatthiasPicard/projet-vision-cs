@@ -1,7 +1,7 @@
 import cv2
 
 MAX_SIZE = 640
-
+DIRECTORY = "./data/labels/"
 
 def resize_to_max(img, max_size_value=MAX_SIZE):
     max_size = max(img.shape[0], img.shape[1])

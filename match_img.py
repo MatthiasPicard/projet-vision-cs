@@ -51,6 +51,17 @@ def classify(img, labels_directory, mask_1=None):
 
 from create_skin_mask import createSkinMask
 from utils import MAX_SIZE, resize_to_max, is_image_file
+from matplotlib import pyplot as plt
+
+
+def full_pipeline_real_time(img, labels_directory, max_size_value):
+    # plt.imshow(img)
+    resized_image = resize_to_max(img, max_size_value)
+    skin_mask = createSkinMask(
+        img=resized_image, histogram_file="histogram.plk", color_space="BGR", size=32
+    )
+    chosen, liste_len_matching = classify(resized_image, labels_directory, skin_mask)
+    return chosen, liste_len_matching
 
 
 def full_pipeline(img_path, labels_directory, max_size_value):
