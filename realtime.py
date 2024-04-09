@@ -27,6 +27,9 @@ while True:
     # Extraire la région d'intérêt (ROI) de l'image
     roi = frame[y : y + h, x : x + w]
 
+    # Re Appliquer l'effet miroir à l'image a traiter
+    roi = cv2.flip(roi, 1)
+
     # Afficher la résolution de la frame
     print(f"Resolution: {roi.shape[1]} x {roi.shape[0]}")
 
