@@ -1,49 +1,43 @@
 import os
 import cv2
+import numpy as np
+
+# Global dictionary to store descriptors of label images
+label_descriptors = {}
 
 
 def classify(img, labels_directory, mask_1=None):
-
-    liste_len_matching = {}
-    sift = cv2.SIFT_create()  # we could also use ORB but I dont think it work better
-    bf = cv2.BFMatcher(crossCheck=True)  # we can specify another norm than L2
+    sift = cv2.SIFT_create()
+    bf = cv2.BFMatcher(crossCheck=True)
 
     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     keypoints_1, descriptors_1 = sift.detectAndCompute(img, mask=mask_1)
 
-    # height, width = img.shape[:2]
+    liste_len_matching = {}
 
     for filename in os.listdir(labels_directory):
-        img_path = os.path.join(labels_directory, filename)
-        img_label = cv2.imread(img_path)
-        img_label = cv2.cvtColor(img_label, cv2.COLOR_BGR2GRAY)
-        mask = cv2.imread(labels_directory + "_skin_masks/" + filename, 0)
+        if filename.endswith(".jpg"):  # Assuming the image files are JPEGs
+            img_path = os.path.join(labels_directory, filename)
 
-        # If the label image and/or its mask are not the same size than the image, we resize them
-        if img_label.shape != img.shape:
-            # img_label_resized = cv2.resize(img_label, (width, height))
-            img_label = cv2.resize(img_label, (img.shape[1], img.shape[0]))
-            mask = cv2.resize(mask, (img.shape[1], img.shape[0]))
+            mask_path = os.path.join(labels_directory + "_skin_masks", filename)
+            mask = cv2.imread(mask_path, 0)
 
-        keypoints_2, descriptors_2 = sift.detectAndCompute(img_label, mask=mask)
-        matches = bf.match(descriptors_1, descriptors_2)
-        liste_len_matching[filename] = len(matches)
+            # Retrieve or compute descriptors from memory
+            if filename in label_descriptors:
+                descriptors_2 = label_descriptors[filename]["descriptors"]
+            else:
+                img_label = cv2.imread(img_path)
+                img_label = cv2.cvtColor(img_label, cv2.COLOR_BGR2GRAY)
+                # Resize mask to match image size if necessary
+                if img_label.shape != img.shape:
+                    img_label = cv2.resize(img_label, (img.shape[1], img.shape[0]))
+                    mask = cv2.resize(mask, (img.shape[1], img.shape[0]))
+                keypoints_2, descriptors_2 = sift.detectAndCompute(img_label, mask)
+                # Store the computed descriptors in the global dictionary
+                label_descriptors[filename] = {"descriptors": descriptors_2}
 
-        matches = sorted(matches, key=lambda x: x.distance)
-
-        # # Draw the top 50 matches on the resized label image
-        # img_matches = cv2.drawMatches(
-        #     img,
-        #     keypoints_1,
-        #     img_label,
-        #     keypoints_2,
-        #     matches[:50],
-        #     None,
-        #     flags=2,
-        # )
-
-        # # Display the matching keypoints
-        # plt.imshow(img_matches), plt.show()
+            matches = bf.match(descriptors_1, descriptors_2)
+            liste_len_matching[filename] = len(matches)
 
     chosen = max(liste_len_matching, key=lambda k: liste_len_matching[k])
     return chosen, liste_len_matching
@@ -77,6 +71,8 @@ def full_pipeline(img_path, labels_directory, max_size_value):
 def run_full_pipeline():
     img_folder = "./data/test_data/"
     cumulated_precision = 0
+    cumulated_good_matches = 0
+    dict_results = {}
     for img_path in os.listdir(img_folder):
         img_path = os.path.join(img_folder, img_path)
         if not is_image_file(img_path):
@@ -101,9 +97,27 @@ def run_full_pipeline():
         )
         print("Precision :", precision, "%")
         cumulated_precision += precision
-    return cumulated_precision / len(os.listdir(img_folder))
+        if img_path.split("/")[-1].split("_")[0] == chosen.split(".")[0]:
+            cumulated_good_matches += 1
+        dict_results[img_path] = (chosen, liste_len_matching[chosen], precision)
+    return (
+        cumulated_precision / len(os.listdir(img_folder)),
+        cumulated_good_matches,
+        dict_results,
+    )
 
 
 if __name__ == "__main__":
-    score = run_full_pipeline()
+    score, correct, results = run_full_pipeline()
     print(f"Precision dans le matching des keypoints: {score} %")
+    print(f"Nombre d'images correctement identifiées: {correct}")
+
+    print("Results:", results)
+    # Plot an histogram of the score for each image label
+    labels = [key.split("/")[-1].split("_")[0] for key in results]
+    scores = [results[key][2] for key in results]
+    plt.bar(labels, scores)
+    plt.xlabel("Labels")
+    plt.ylabel("Scores")
+    plt.title("Scores of each label")
+    plt.show()
